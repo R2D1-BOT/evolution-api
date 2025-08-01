@@ -1,6 +1,5 @@
-// src/main.ts (bootstrap)
-
-import '@utils/instrumentSentry'; // IMPORTANTE: Primero, para Sentry
+// Import this first from sentry instrument!
+import '@utils/instrumentSentry';
 
 import { ProviderFiles } from '@api/provider/sessions';
 import { PrismaRepository } from '@api/repository/repository.service';
@@ -40,12 +39,8 @@ async function bootstrap() {
     cors({
       origin(requestOrigin, callback) {
         const { ORIGIN } = configService.get<Cors>('CORS');
-        if (ORIGIN.includes('*')) {
-          return callback(null, true);
-        }
-        if (ORIGIN.indexOf(requestOrigin) !== -1) {
-          return callback(null, true);
-        }
+        if (ORIGIN.includes('*')) return callback(null, true);
+        if (ORIGIN.indexOf(requestOrigin) !== -1) return callback(null, true);
         return callback(new Error('Not allowed by CORS'));
       },
       methods: [...configService.get<Cors>('CORS').METHODS],
@@ -68,42 +63,29 @@ async function bootstrap() {
       if (err) {
         const webhook = configService.get<Webhook>('WEBHOOK');
 
-        if (webhook.EVENTS.ERRORS_WEBHOOK && webhook.EVENTS.ERRORS_WEBHOOK != '' && webhook.EVENTS.ERRORS) {
-          const tzoffset = new Date().getTimezoneOffset() * 60000; //offset in milliseconds
-          const localISOTime = new Date(Date.now() - tzoffset).toISOString();
-          const now = localISOTime;
-          const globalApiKey = configService.get<Auth>('AUTHENTICATION').API_KEY.KEY;
-          const serverUrl = configService.get<HttpServer>('SERVER').URL;
-
+        if (webhook.EVENTS.ERRORS_WEBHOOK && webhook.EVENTS.ERRORS_WEBHOOK !== '' && webhook.EVENTS) {
+          const now = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString();
           const errorData = {
             event: 'error',
             data: {
               error: err['error'] || 'Internal Server Error',
               message: err['message'] || 'Internal Server Error',
               status: err['status'] || 500,
-              response: {
-                message: err['message'] || 'Internal Server Error',
-              },
+              response: { message: err['message'] || 'Internal Server Error' },
             },
             date_time: now,
-            api_key: globalApiKey,
-            server_url: serverUrl,
+            api_key: configService.get<Auth>('AUTHENTICATION').API_KEY.KEY,
+            server_url: configService.get<HttpServer>('SERVER').URL,
           };
 
           logger.error(errorData);
-
-          const baseURL = webhook.EVENTS.ERRORS_WEBHOOK;
-          const httpService = axios.create({ baseURL });
-
-          httpService.post('', errorData);
+          axios.create({ baseURL: webhook.EVENTS.ERRORS_WEBHOOK }).post('', errorData);
         }
 
         return res.status(err['status'] || 500).json({
           status: err['status'] || 500,
           error: err['error'] || 'Internal Server Error',
-          response: {
-            message: err['message'] || 'Internal Server Error',
-          },
+          response: { message: err['message'] || 'Internal Server Error' },
         });
       }
 
@@ -111,28 +93,21 @@ async function bootstrap() {
     },
     (req: Request, res: Response, next: NextFunction) => {
       const { method, url } = req;
-
       res.status(HttpStatus.NOT_FOUND).json({
         status: HttpStatus.NOT_FOUND,
         error: 'Not Found',
-        response: {
-          message: [`Cannot ${method.toUpperCase()} ${url}`],
-        },
+        response: { message: [`Cannot ${method.toUpperCase()} ${url}`] },
       });
-
       next();
     },
   );
 
   const httpServer = configService.get<HttpServer>('SERVER');
-  
   ServerUP.app = app;
   let server = ServerUP[httpServer.TYPE];
 
-  if (server === null) {
+  if (!server) {
     logger.warn('SSL cert load failed — falling back to HTTP.');
-    logger.info("Ensure 'SSL_CONF_PRIVKEY' and 'SSL_CONF_FULLCHAIN' env vars point to valid certificate files.");
-
     httpServer.TYPE = 'http';
     server = ServerUP[httpServer.TYPE];
   }
@@ -144,12 +119,11 @@ async function bootstrap() {
     Sentry.setupExpressErrorHandler(app);
   }
 
-  // AQUI EL CAMBIO CLAVE PARA Render:
-  const port = process.env.PORT || httpServer.PORT;
+  // Render PORT fix:
+  const port = process.env.PORT || httpServer.PORT || 8080;
   server.listen(port, () => logger.log(`${httpServer.TYPE.toUpperCase()} - ON: ${port}`));
 
   initWA();
-
   onUnexpectedError();
 }
 
