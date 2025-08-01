@@ -1,7 +1,7 @@
-// Import this first from sentry instrument!
-import '@utils/instrumentSentry';
+// src/main.ts (bootstrap)
 
-// Now import other modules
+import '@utils/instrumentSentry'; // IMPORTANTE: Primero, para Sentry
+
 import { ProviderFiles } from '@api/provider/sessions';
 import { PrismaRepository } from '@api/repository/repository.service';
 import { HttpStatus, router } from '@api/routes/index.router';
@@ -59,7 +59,6 @@ async function bootstrap() {
   app.set('view engine', 'hbs');
   app.set('views', join(ROOT_DIR, 'views'));
   app.use(express.static(join(ROOT_DIR, 'public')));
-
   app.use('/store', express.static(join(ROOT_DIR, 'store')));
 
   app.use('/', router);
@@ -126,7 +125,7 @@ async function bootstrap() {
   );
 
   const httpServer = configService.get<HttpServer>('SERVER');
-
+  
   ServerUP.app = app;
   let server = ServerUP[httpServer.TYPE];
 
@@ -145,8 +144,8 @@ async function bootstrap() {
     Sentry.setupExpressErrorHandler(app);
   }
 
-  // Puerto dinámico: toma de entorno o fallback
-  const port = Number(process.env.PORT) || httpServer.PORT || 8080;
+  // AQUI EL CAMBIO CLAVE PARA Render:
+  const port = process.env.PORT || httpServer.PORT;
   server.listen(port, () => logger.log(`${httpServer.TYPE.toUpperCase()} - ON: ${port}`));
 
   initWA();
