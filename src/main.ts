@@ -142,13 +142,12 @@ async function bootstrap() {
 
   if (process.env.SENTRY_DSN) {
     logger.info('Sentry - ON');
-
-    // Add this after all routes,
-    // but before any and other error-handling middlewares are defined
     Sentry.setupExpressErrorHandler(app);
   }
 
-  server.listen(httpServer.PORT, () => logger.log(httpServer.TYPE.toUpperCase() + ' - ON: ' + httpServer.PORT));
+  // Puerto dinámico: toma de entorno o fallback
+  const port = Number(process.env.PORT) || httpServer.PORT || 8080;
+  server.listen(port, () => logger.log(`${httpServer.TYPE.toUpperCase()} - ON: ${port}`));
 
   initWA();
 
